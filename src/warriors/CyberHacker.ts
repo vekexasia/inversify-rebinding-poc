@@ -1,11 +1,11 @@
 import {Symbols} from '../symbols';
-import {yearFrom} from '../autoRebind';
 import {inject, injectable} from 'inversify';
 import {IWarrior} from './IWarrior';
 import {IArmor} from '../armors';
+import {yearsRebinder} from '../rebinders';
 
 @injectable()
-@yearFrom(2000, Symbols.warrior)
+@yearsRebinder.decorator(2000, Symbols.warrior)
 export class CyberHacker implements IWarrior {
   @inject(Symbols.armor)
   public armor: IArmor;
