@@ -65,3 +65,8 @@ checkInstances(CyberHacker, FirewallArmor);
 year = 2100;
 yearsRebinder.updateChanger(year, c);
 checkInstances(Ninja, KevlarArmor);
+
+// then time machine gets invented so we go back to 2017
+year = 2017;
+yearsRebinder.updateChanger(year, c);
+checkInstances(CyberHacker, FirewallArmor);

@@ -16,7 +16,7 @@ export class AutoRebind {
   /*
    * Keeps the steps counter for each symbol
    */
-  private stepsBySymbol: { [symbol: string]: number } ;
+  private stepsBySymbol: { [symbol: string]: number };
 
   // Keeps a list of instances having an injected property of such symbol
   private instancesBySymbol: { [symbol: string]: Array<{ prop: string, instance: any }> } = {};
@@ -35,7 +35,7 @@ export class AutoRebind {
   }
 
   /**
-   * Internal use only Exposed only for 
+   * Internal use only Exposed only for
    * @param {Constructor} constructor
    * @param {Array<SingleMeta>} metas
    */
@@ -73,6 +73,7 @@ export class AutoRebind {
 
   /**
    * Removes an instance from the tracked collections
+   * Use this when the instance needs to be disposed.
    * @returns the number of removed entries.
    */
   public removeInstance(instance: any): number {
@@ -104,14 +105,19 @@ export class AutoRebind {
     let somethingChanged = false;
     const keys           = Object.getOwnPropertySymbols(this.stepsBySymbol);
     for (let k of  keys) {
-      const curStep = this.stepsBySymbol[k];
-      if (curStep < this.collections[k].length - 1 && this.collections[k][curStep + 1].from <= newVal) {
-        this.stepsBySymbol[k]++;
+      const curStep   = this.stepsBySymbol[k];
+      let desiredStep = this.collections[k].findIndex((a) => a.from > newVal) - 1;
+      if (desiredStep < 0) {
+        desiredStep = this.collections[k].length - 1;
+      }
+      if (curStep != desiredStep) {
+        // console.log(`${k.toString()} from step ${curStep} to step ${desiredStep}`);
+        this.stepsBySymbol[k] = desiredStep;
         somethingChanged = true;
         // Call rebind to change the current associated instance for such symbol and
         // keep track of the instance with myOnActivation()
 
-        c.rebind<any>(k).to(this.collections[k][curStep + 1].clz).inSingletonScope()
+        c.rebind<any>(k).to(this.collections[k][desiredStep].clz).inSingletonScope()
           .onActivation(this.onActivation());
         // Update instances of this symbol.
         if (Array.isArray(this.instancesBySymbol[k])) {
@@ -121,7 +127,7 @@ export class AutoRebind {
               const old      = instance[prop];
               instance[prop] = c.get(k); // update instance.
               this.removeInstance(old);
-              console.log(`Updated ${instance.constructor.name}.${prop} from ${old.constructor.name} to ${instance[prop].constructor.name}`);
+              // console.log(`Updated ${instance.constructor.name}.${prop} from ${old.constructor.name} to ${instance[prop].constructor.name}`);
             })
         }
       }
