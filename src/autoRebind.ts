@@ -7,6 +7,10 @@ type Constructor = new (...args: any[]) => any
 
 export type SingleMeta = { from: number, symbol: symbol }
 
+/**
+ * This class lets you rewire injected properties on the fly
+ * based on a numeric
+ */
 export class AutoRebind {
   private collections: { [symbol: string]: Array<{ from: number, clz: Constructor }> } = {};
   /*
@@ -21,14 +25,30 @@ export class AutoRebind {
   constructor(private id: string) {
   }
 
+  /**
+   * Reads metas from a class decorated usin #this.decorator()
+   * @param {Constructor} constructor
+   * @return {Array<SingleMeta>}
+   */
   public getMetas(constructor: Constructor): Array<SingleMeta> {
     return Reflect.getMetadata(`rebind:${this.id}`, constructor) || [];
   }
 
+  /**
+   * Internal use only Exposed only for 
+   * @param {Constructor} constructor
+   * @param {Array<SingleMeta>} metas
+   */
   public putMetas(constructor: Constructor, metas: Array<SingleMeta>) {
     Reflect.defineMetadata(`rebind:${this.id}`, metas, constructor);
   }
 
+  /**
+   * Decorator method to use on the injected classes.
+   * @param {number} from the number where the class will be active from
+   * @param {symbol} what the symbol used when using @inject()
+   * @return {ClassDecorator}
+   */
   public decorator(from: number, what: symbol): ClassDecorator {
     return (constructor: any) => {
       if (!Array.isArray(this.collections[what as any])) {
@@ -71,15 +91,14 @@ export class AutoRebind {
     return removed;
   }
 
-  private init(): this {
-    if (typeof(this.stepsBySymbol) === 'undefined') {
-      this.stepsBySymbol = {};
-      Object.getOwnPropertySymbols(this.collections)
-        .forEach((k) => this.stepsBySymbol[k] = 0);
-    }
-    return this;
-  }
 
+  /**
+   * Update the changer value to a new value. This also takes care of
+   *  - check if a new class is now going to be used
+   *  - remove the old class instance
+   *  - inject the new instance to the correct ones.
+   *
+   */
   public updateChanger(newVal: number, c: Container) {
     this.init();
     let somethingChanged = false;
@@ -110,6 +129,10 @@ export class AutoRebind {
     return somethingChanged;
   }
 
+  /**
+   * Add this to every member that has an injected property which
+   * is mutable by this "changer"
+   */
   public onActivation<T>() {
     return (context: Context, injectable: T): T => {
       const props: { [k: string]: Metadata[] } = Reflect.getMetadata('inversify:tagged_props', injectable.constructor);
@@ -119,21 +142,39 @@ export class AutoRebind {
       }
       const properties = Object.keys(props);
       for (const property of properties) {
-        const mutableByYearsMetadatas: Metadata[] = props[property]
+        // Filter property that needs to be injected and that whose value (symbol)
+        // is included in our handled collections!
+        const mutableByThisId: Metadata[] = props[property]
           .filter((item) => item.key === 'inject')
           .filter((item) => typeof(this.collections[item.value]) !== 'undefined');
 
         // Can a property have multi @inject ?
-        if (mutableByYearsMetadatas.length === 1) {
+        if (mutableByThisId.length === 1) {
           // Add to the instancesCollections.
-          const [meta] = mutableByYearsMetadatas;
+          const [meta] = mutableByThisId;
           const arr    = this.instancesBySymbol[meta.value] || [];
           arr.push({ prop: property, instance: injectable });
           this.instancesBySymbol[meta.value] = arr;
+        } else if (mutableByThisId.length > 1) {
+          throw new Error(`WTF? ${JSON.stringify(mutableByThisId, null, 2)}`);
         }
       }
 
       return injectable;
     }
+  }
+
+
+  /**
+   * This is only used to initialize the stepsBySymbol Map
+   * @return {this}
+   */
+  private init(): this {
+    if (typeof(this.stepsBySymbol) === 'undefined') {
+      this.stepsBySymbol = {};
+      Object.getOwnPropertySymbols(this.collections)
+        .forEach((k) => this.stepsBySymbol[k] = 0);
+    }
+    return this;
   }
 }
